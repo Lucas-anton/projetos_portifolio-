@@ -1,0 +1,46 @@
+==============================================================
+  RELATÓRIO DE ANÁLISE — NASA OPEN DATA
+==============================================================
+  Período analisado    : 2026-03-22 → 2026-03-28
+  Asteroides coletados : 111
+  Potencialmente perig.: 5 (4.5%)
+  Diâmetro médio       : 0.077 km
+  Maior asteroide      : 1.714 km
+  Aproximação mais próx: 46,133 km da Terra
+  Mais rápido          : 123,903 km/h
+  Entradas APOD        : 7
+
+  Avisos:
+    ✓  Nenhum problema encontrado.
+==============================================================
+
+📋 TOP 5 ASTEROIDES MAIS PRÓXIMOS
+      Nome  Distância (km)  Velocidade (km/h)  Diâm. médio (km)  Perigoso?
+(2026 FS5)    46133.350185       38848.975312          0.002330      False
+(2026 FM3)   237901.513358       19585.900880          0.005858      False
+(2026 FN5)   381279.029124       42796.653404          0.018956      False
+(2026 FZ4)   478444.132231       49625.070242          0.004214      False
+(2026 FO6)   488506.982554       41050.043901          0.007928      False
+
+🌌 APOD — IMAGENS DO PERÍODO
+      date                                                   title media_type
+2026-03-22                                           Leaving Earth      video
+2026-03-23                       Light Pillars and Orion over Mohe      image
+2026-03-24                                  A Gravity Map of Earth      video
+2026-03-25         The Guardians of Rapa Nui beneath the Milky Way      image
+2026-03-26 Black Holes and Neutron Stars: 218 Mergers and Counting      image
+2026-03-27                                       Hickson 44 in Leo      image
+2026-03-28                                 Robert Goddard and Nell      image
+
+🔑 TOP PALAVRAS NOS TÍTULOS DO APOD
+title
+earth        2
+leaving      1
+light        1
+pillars      1
+orion        1
+over         1
+mohe         1
+gravity      1
+map          1
+guardians    1
