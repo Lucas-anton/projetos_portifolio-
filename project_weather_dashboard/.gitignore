@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.Python
+*.egg-info/
+dist/
+build/
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Dados gerados
+output/
+*.csv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
