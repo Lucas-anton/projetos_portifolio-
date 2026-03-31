@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CryptoFlow — Pipeline Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<style>
+  /* ── Reset & Base ─────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #030508;
+    --surface:   #0a0d14;
+    --glass:     rgba(255,255,255,0.03);
+    --border:    rgba(255,255,255,0.07);
+    --text:      #e8eaf0;
+    --muted:     #4a5060;
+    --accent:    #00ff88;
+    --danger:    #ff3b5c;
+    --warning:   #ffb01f;
+    --font-mono: 'Space Mono', monospace;
+    --font-disp: 'Syne', sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Background noise texture ─────────────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ── Grid lines ───────────────────────────────────────────────── */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,136,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ── Layout ───────────────────────────────────────────────────── */
+  .shell { position: relative; z-index: 1; max-width: 1440px; margin: 0 auto; padding: 0 24px 60px; }
+
+  /* ── Header ───────────────────────────────────────────────────── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 28px 0 32px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    font-family: var(--font-disp);
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, #00ff88, #00cfff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .logo span { color: var(--muted); -webkit-text-fill-color: var(--muted); font-weight: 400; }
+
+  .status-bar {
+    display: flex; align-items: center; gap: 20px;
+    font-size: 11px; color: var(--muted);
+  }
+
+  .pulse {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 0 rgba(0,255,136,0.4);
+    animation: pulse 2s infinite;
+  }
+
+  .pulse.error { background: var(--danger); box-shadow: 0 0 0 0 rgba(255,59,92,0.4); }
+
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(0,255,136,0.4); }
+    70%  { box-shadow: 0 0 0 8px rgba(0,255,136,0); }
+    100% { box-shadow: 0 0 0 0 rgba(0,255,136,0); }
+  }
+
+  /* ── Section label ────────────────────────────────────────────── */
+  .label {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.15em; color: var(--muted);
+    text-transform: uppercase; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* ── Glass card ───────────────────────────────────────────────── */
+  .card {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    backdrop-filter: blur(12px);
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: rgba(255,255,255,0.12); }
+
+  /* ── KPI Grid ─────────────────────────────────────────────────── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .kpi-card {
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--glass);
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+
+  .kpi-card:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.14); }
+
+  .kpi-card.active { border-color: var(--coin-color, var(--accent)); }
+
+  .kpi-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--coin-color, var(--accent));
+    opacity: 0.7;
+  }
+
+  .kpi-symbol {
+    font-family: var(--font-disp);
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--coin-color, var(--accent));
+    margin-bottom: 8px;
+  }
+
+  .kpi-name { font-size: 10px; color: var(--muted); margin-bottom: 12px; }
+
+  .kpi-price {
+    font-family: var(--font-disp);
+    font-size: 1.4rem; font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .kpi-change {
+    font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .kpi-change.up   { color: var(--accent); }
+  .kpi-change.down { color: var(--danger); }
+
+  .kpi-sparkline { margin-top: 12px; height: 36px; }
+
+  /* ── Alert banner ─────────────────────────────────────────────── */
+  #alerts { margin-bottom: 24px; display: flex; flex-direction: column; gap: 8px; }
+
+  .alert {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border-radius: 8px;
+    border: 1px solid;
+    font-size: 12px;
+    animation: slideIn 0.3s ease;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateX(-12px); opacity: 0; }
+    to   { transform: translateX(0);     opacity: 1; }
+  }
+
+  .alert.danger  { background: rgba(255,59,92,0.08);  border-color: rgba(255,59,92,0.3);  color: #ff8099; }
+  .alert.warning { background: rgba(255,176,31,0.08); border-color: rgba(255,176,31,0.3); color: #ffc94d; }
+  .alert.success { background: rgba(0,255,136,0.06);  border-color: rgba(0,255,136,0.25); color: var(--accent); }
+
+  .alert-icon { font-size: 16px; }
+  .alert strong { font-weight: 700; }
+
+  /* ── Main chart ───────────────────────────────────────────────── */
+  .chart-wrapper {
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .chart-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .chart-title {
+    font-family: var(--font-disp);
+    font-size: 1rem; font-weight: 700;
+  }
+
+  .chart-tabs {
+    display: flex; gap: 4px;
+  }
+
+  .tab {
+    padding: 5px 12px; border-radius: 6px;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.1em;
+    border: 1px solid var(--border);
+    background: transparent; color: var(--muted);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .tab.active, .tab:hover {
+    background: var(--glass);
+    border-color: rgba(255,255,255,0.15);
+    color: var(--text);
+  }
+
+  .chart-container { height: 280px; }
+
+  /* ── Two-col layout ───────────────────────────────────────────── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ── Metrics mini chart ───────────────────────────────────────── */
+  .mini-chart-wrap { padding: 20px; }
+  .mini-chart-container { height: 200px; }
+
+  /* ── Table ────────────────────────────────────────────────────── */
+  .table-wrap { padding: 20px; margin-bottom: 24px; }
+
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  th {
+    text-align: left; padding: 10px 12px;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.1em; color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 12px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    vertical-align: middle;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .coin-cell { display: flex; align-items: center; gap: 10px; }
+  .coin-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .coin-sym  { font-weight: 700; font-family: var(--font-disp); }
+  .coin-name { color: var(--muted); font-size: 10px; }
+
+  .num { font-variant-numeric: tabular-nums; text-align: right; }
+  .up   { color: var(--accent); }
+  .down { color: var(--danger); }
+  .neutral { color: var(--muted); }
+
+  .bar-cell { display: flex; align-items: center; gap: 8px; }
+  .mini-bar { height: 3px; border-radius: 2px; min-width: 2px; max-width: 80px; }
+
+  /* ── Pipeline log ─────────────────────────────────────────────── */
+  .log-wrap { padding: 20px; margin-bottom: 24px; }
+  .log-list { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }
+
+  .log-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 12px; border-radius: 6px;
+    background: rgba(255,255,255,0.02);
+    font-size: 11px;
+  }
+
+  .log-status { font-size: 14px; }
+  .log-time   { color: var(--muted); min-width: 140px; }
+  .log-coins  { color: var(--accent); }
+  .log-error  { color: var(--danger); }
+
+  /* ── Footer ───────────────────────────────────────────────────── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    color: var(--muted); font-size: 11px;
+  }
+
+  /* ── Countdown ────────────────────────────────────────────────── */
+  .countdown {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; color: var(--muted);
+  }
+
+  .countdown-bar {
+    width: 80px; height: 3px;
+    background: var(--border); border-radius: 2px; overflow: hidden;
+  }
+
+  .countdown-fill {
+    height: 100%; border-radius: 2px;
+    background: var(--accent);
+    transition: width 1s linear;
+  }
+
+  /* ── Scrollbar ────────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── Loading state ────────────────────────────────────────────── */
+  .loading {
+    display: flex; align-items: center; justify-content: center;
+    height: 200px; color: var(--muted); gap: 12px;
+    flex-direction: column;
+  }
+  .spinner {
+    width: 24px; height: 24px; border-radius: 50%;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Number counter animation ─────────────────────────────────── */
+  .count-up { transition: opacity 0.3s; }
+  .count-up.updating { opacity: 0.5; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── Header ──────────────────────────────────────────────── -->
+  <header>
+    <div>
+      <div class="logo">CryptoFlow <span>/ pipeline</span></div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:0.05em">
+        AUTOMATED DATA PIPELINE · SQLITE · COINGECKO API
+      </div>
+    </div>
+    <div class="status-bar">
+      <div class="countdown">
+        <span>próxima coleta</span>
+        <div class="countdown-bar"><div class="countdown-fill" id="countdown-fill"></div></div>
+        <span id="countdown-text">5:00</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <div class="pulse" id="status-pulse"></div>
+        <span id="status-text">conectando...</span>
+      </div>
+      <div id="last-update" style="font-size:10px"></div>
+    </div>
+  </header>
+
+  <div style="height:28px"></div>
+
+  <!-- ── Alerts ──────────────────────────────────────────────── -->
+  <div id="alerts"></div>
+
+  <!-- ── KPI Cards ───────────────────────────────────────────── -->
+  <div class="label">mercado ao vivo</div>
+  <div class="kpi-grid" id="kpi-grid">
+    <div class="loading"><div class="spinner"></div><span>carregando dados...</span></div>
+  </div>
+
+  <!-- ── Main Chart ──────────────────────────────────────────── -->
+  <div class="label">histórico de preço</div>
+  <div class="card chart-wrapper">
+    <div class="chart-header">
+      <div class="chart-title" id="chart-coin-name">Bitcoin</div>
+      <div class="chart-tabs" id="chart-tabs"></div>
+    </div>
+    <div class="chart-container">
+      <canvas id="main-chart"></canvas>
+    </div>
+  </div>
+
+  <!-- ── Two col: Vol + Dominance ────────────────────────────── -->
+  <div class="two-col">
+    <div class="card mini-chart-wrap">
+      <div class="label">volume 24h por moeda</div>
+      <div class="mini-chart-container"><canvas id="vol-chart"></canvas></div>
+    </div>
+    <div class="card mini-chart-wrap">
+      <div class="label">variação 24h comparativo</div>
+      <div class="mini-chart-container"><canvas id="change-chart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ── Table ───────────────────────────────────────────────── -->
+  <div class="label">tabela de dados — histórico do banco</div>
+  <div class="card table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Moeda</th>
+          <th class="num">Preço (USD)</th>
+          <th class="num">1h %</th>
+          <th class="num">24h %</th>
+          <th class="num">7d %</th>
+          <th class="num">Volume 24h</th>
+          <th class="num">Market Cap</th>
+          <th>Range 24h</th>
+          <th class="num">Coletado em</th>
+        </tr>
+      </thead>
+      <tbody id="main-table"></tbody>
+    </table>
+  </div>
+
+  <!-- ── Pipeline log ────────────────────────────────────────── -->
+  <div class="label">log do pipeline</div>
+  <div class="card log-wrap">
+    <div class="log-list" id="log-list">
+      <div class="loading" style="height:80px"><span style="color:var(--muted)">aguardando dados...</span></div>
+    </div>
+  </div>
+
+  <!-- ── Footer ──────────────────────────────────────────────── -->
+  <footer>
+    <span>CryptoFlow Pipeline · SQLite · Python · CoinGecko API</span>
+    <span>Total de registros: <strong id="total-records" style="color:var(--accent)">—</strong></span>
+  </footer>
+
+</div><!-- /shell -->
+
+<script>
+// ── Config ──────────────────────────────────────────────────────────
+const REFRESH_INTERVAL = 300; // segundos
+const DATA_URL = 'data.json';
+
+// ── State ────────────────────────────────────────────────────────────
+let data = null;
+let selectedCoin = 'bitcoin';
+let mainChart = null;
+let volChart  = null;
+let changeChart = null;
+let countdown = REFRESH_INTERVAL;
+
+// ── Helpers ──────────────────────────────────────────────────────────
+const fmt = {
+  price: v => {
+    if (v >= 1000) return '$' + v.toLocaleString('en-US', {maximumFractionDigits: 2});
+    if (v >= 1)    return '$' + v.toFixed(4);
+    return '$' + v.toFixed(6);
+  },
+  pct: v => {
+    const s = v >= 0 ? '+' : '';
+    return s + v.toFixed(2) + '%';
+  },
+  vol: v => {
+    if (v >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B';
+    if (v >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+    return '$' + v.toLocaleString();
+  },
+  time: s => {
+    const d = new Date(s);
+    return d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  },
+  datetime: s => {
+    const d = new Date(s);
+    return d.toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  },
+};
+
+const pctClass = v => v > 0 ? 'up' : v < 0 ? 'down' : 'neutral';
+const pctArrow = v => v > 0 ? '▲' : v < 0 ? '▼' : '—';
+
+// ── Fetch data ────────────────────────────────────────────────────────
+async function fetchData() {
+  try {
+    const res = await fetch(DATA_URL + '?t=' + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    data = await res.json();
+    render();
+    updateStatus(true);
+  } catch(e) {
+    console.error('Erro ao carregar dados:', e);
+    updateStatus(false);
+    if (!data) showNoData();
+  }
+}
+
+function updateStatus(ok) {
+  const pulse = document.getElementById('status-pulse');
+  const text  = document.getElementById('status-text');
+  pulse.className = 'pulse' + (ok ? '' : ' error');
+  text.textContent = ok ? 'pipeline ativo' : 'sem dados';
+  document.getElementById('last-update').textContent =
+    'atualizado ' + new Date().toLocaleTimeString('pt-BR');
+}
+
+function showNoData() {
+  document.getElementById('kpi-grid').innerHTML =
+    '<div class="loading"><span>Execute o pipeline: <code>python main.py</code></span></div>';
+}
+
+// ── Render ────────────────────────────────────────────────────────────
+function render() {
+  if (!data) return;
+  renderAlerts();
+  renderKPIs();
+  renderTable();
+  renderMainChart();
+  renderVolChart();
+  renderChangeChart();
+  renderLog();
+  document.getElementById('total-records').textContent =
+    (data.meta.total_records || 0).toLocaleString('pt-BR');
+}
+
+// ── Alerts ────────────────────────────────────────────────────────────
+function renderAlerts() {
+  const container = document.getElementById('alerts');
+  const alerts = [];
+
+  (data.latest || []).forEach(coin => {
+    const sym = coin.symbol;
+    if (coin.change_24h <= -10) {
+      alerts.push({type:'danger', icon:'🚨',
+        msg: `<strong>${sym}</strong> caiu ${fmt.pct(coin.change_24h)} nas últimas 24h`});
+    } else if (coin.change_24h <= -5) {
+      alerts.push({type:'warning', icon:'⚠️',
+        msg: `<strong>${sym}</strong> queda de ${fmt.pct(coin.change_24h)} em 24h`});
+    } else if (coin.change_24h >= 10) {
+      alerts.push({type:'success', icon:'🚀',
+        msg: `<strong>${sym}</strong> subiu ${fmt.pct(coin.change_24h)} nas últimas 24h`});
+    }
+  });
+
+  if (!alerts.length) {
+    alerts.push({type:'success', icon:'✅',
+      msg:'Mercado estável — nenhum alerta de variação extrema no momento'});
+  }
+
+  container.innerHTML = alerts.map(a => `
+    <div class="alert ${a.type}">
+      <span class="alert-icon">${a.icon}</span>
+      <span>${a.msg}</span>
+    </div>
+  `).join('');
+}
+
+// ── KPI Cards ─────────────────────────────────────────────────────────
+function renderKPIs() {
+  const grid = document.getElementById('kpi-grid');
+  const colors = data.meta.colors || {};
+  const symbols = data.meta.symbols || {};
+
+  grid.innerHTML = (data.latest || []).map(coin => {
+    const color = colors[coin.coin_id] || '#00ff88';
+    const hist = (data.history[coin.coin_id] || []).slice(-12);
+    const prices = hist.map(h => h.price);
+    const chClass = pctClass(coin.change_24h);
+    const chArrow = pctArrow(coin.change_24h);
+    const isActive = coin.coin_id === selectedCoin;
+
+    return `
+      <div class="kpi-card ${isActive ? 'active' : ''}"
+           style="--coin-color:${color}"
+           onclick="selectCoin('${coin.coin_id}')">
+        <div class="kpi-symbol">${coin.symbol}</div>
+        <div class="kpi-name">${coin.coin_id}</div>
+        <div class="kpi-price count-up">${fmt.price(coin.price_usd)}</div>
+        <div class="kpi-change ${chClass}">
+          ${chArrow} ${fmt.pct(coin.change_24h)} <span style="color:var(--muted);font-weight:400">24h</span>
+        </div>
+        <div class="kpi-sparkline">
+          <canvas id="spark-${coin.coin_id}" height="36"></canvas>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Renderiza sparklines
+  (data.latest || []).forEach(coin => {
+    const hist = (data.history[coin.coin_id] || []).slice(-12);
+    const prices = hist.map(h => h.price);
+    const canvas = document.getElementById(`spark-${coin.coin_id}`);
+    if (!canvas || prices.length < 2) return;
+
+    const color = (data.meta.colors || {})[coin.coin_id] || '#00ff88';
+    new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: prices.map((_, i) => i),
+        datasets: [{data: prices, borderColor: color, borderWidth: 1.5,
+          pointRadius: 0, fill: true,
+          backgroundColor: ctx => {
+            const g = ctx.chart.ctx.createLinearGradient(0,0,0,36);
+            g.addColorStop(0, color + '33'); g.addColorStop(1, color + '00');
+            return g;
+          }}]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: {legend:{display:false}, tooltip:{enabled:false}},
+        scales: {x:{display:false}, y:{display:false}},
+      }
+    });
+  });
+}
+
+// ── Chart tabs ────────────────────────────────────────────────────────
+function selectCoin(coinId) {
+  selectedCoin = coinId;
+  renderKPIs();
+  renderMainChart();
+}
+
+// ── Main price chart ──────────────────────────────────────────────────
+function renderMainChart() {
+  const hist = (data.history[selectedCoin] || []);
+  if (!hist.length) return;
+
+  const color = (data.meta.colors || {})[selectedCoin] || '#00ff88';
+  const labels = hist.map(h => fmt.time(h.t));
+  const prices = hist.map(h => h.price);
+
+  const coinName = selectedCoin.charAt(0).toUpperCase() + selectedCoin.slice(1);
+  document.getElementById('chart-coin-name').textContent = coinName + ' — Histórico de Preço';
+
+  const canvas = document.getElementById('main-chart');
+  if (mainChart) { mainChart.destroy(); }
+
+  mainChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: prices,
+        borderColor: color,
+        borderWidth: 2,
+        pointRadius: prices.length > 20 ? 0 : 3,
+        pointBackgroundColor: color,
+        fill: true,
+        tension: 0.3,
+        backgroundColor: ctx => {
+          const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, 280);
+          g.addColorStop(0, color + '28');
+          g.addColorStop(1, color + '00');
+          return g;
+        }
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 600, easing: 'easeInOutQuart' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0a0d14',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
+          titleColor: '#8b949e',
+          bodyColor: '#e8eaf0',
+          callbacks: {
+            label: ctx => ' ' + fmt.price(ctx.parsed.y),
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.03)' },
+          ticks: { color: '#4a5060', font: { family: 'Space Mono', size: 10 },
+            maxTicksLimit: 8 }
+        },
+        y: {
+          position: 'right',
+          grid: { color: 'rgba(255,255,255,0.03)' },
+          ticks: { color: '#4a5060', font: { family: 'Space Mono', size: 10 },
+            callback: v => fmt.price(v) }
+        }
+      }
+    }
+  });
+
+  // Tabs de seleção de moeda
+  const tabs = document.getElementById('chart-tabs');
+  tabs.innerHTML = (data.latest || []).map(c => `
+    <button class="tab ${c.coin_id === selectedCoin ? 'active' : ''}"
+            onclick="selectCoin('${c.coin_id}')">${c.symbol}</button>
+  `).join('');
+}
+
+// ── Volume chart ──────────────────────────────────────────────────────
+function renderVolChart() {
+  const latest = data.latest || [];
+  const labels = latest.map(c => c.symbol);
+  const vols   = latest.map(c => c.volume_24h / 1e9);
+  const colors = latest.map(c => (data.meta.colors || {})[c.coin_id] || '#00ff88');
+
+  if (volChart) volChart.destroy();
+  volChart = new Chart(document.getElementById('vol-chart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: vols, backgroundColor: colors.map(c => c + 'aa'),
+        borderColor: colors, borderWidth: 1, borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ' $' + ctx.parsed.y.toFixed(2) + 'B' } } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#4a5060', font: { family: 'Space Mono', size: 10 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#4a5060', font: { family: 'Space Mono', size: 10 },
+            callback: v => '$' + v.toFixed(1) + 'B' } }
+      }
+    }
+  });
+}
+
+// ── Change chart ──────────────────────────────────────────────────────
+function renderChangeChart() {
+  const latest = data.latest || [];
+  const labels = latest.map(c => c.symbol);
+  const changes = latest.map(c => c.change_24h);
+  const colors = changes.map(v => v >= 0 ? '#00ff88aa' : '#ff3b5caa');
+  const borders = changes.map(v => v >= 0 ? '#00ff88' : '#ff3b5c');
+
+  if (changeChart) changeChart.destroy();
+  changeChart = new Chart(document.getElementById('change-chart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: changes, backgroundColor: colors,
+        borderColor: borders, borderWidth: 1, borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ' ' + fmt.pct(ctx.parsed.y) } } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#4a5060', font: { family: 'Space Mono', size: 10 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#4a5060', font: { family: 'Space Mono', size: 10 },
+            callback: v => fmt.pct(v) } }
+      }
+    }
+  });
+}
+
+// ── Table ─────────────────────────────────────────────────────────────
+function renderTable() {
+  const tbody = document.getElementById('main-table');
+  const colors = data.meta.colors || {};
+  const latest = data.latest || [];
+
+  tbody.innerHTML = latest.map(coin => {
+    const color = colors[coin.coin_id] || '#00ff88';
+    const range = coin.high_24h - coin.low_24h;
+    const pos = range > 0 ? ((coin.price_usd - coin.low_24h) / range * 80) : 40;
+
+    return `
+      <tr>
+        <td>
+          <div class="coin-cell">
+            <div class="coin-dot" style="background:${color}"></div>
+            <div>
+              <div class="coin-sym">${coin.symbol}</div>
+              <div class="coin-name">${coin.coin_id}</div>
+            </div>
+          </div>
+        </td>
+        <td class="num">${fmt.price(coin.price_usd)}</td>
+        <td class="num ${pctClass(coin.change_1h)}">${pctArrow(coin.change_1h)} ${Math.abs(coin.change_1h).toFixed(2)}%</td>
+        <td class="num ${pctClass(coin.change_24h)}">${pctArrow(coin.change_24h)} ${Math.abs(coin.change_24h).toFixed(2)}%</td>
+        <td class="num ${pctClass(coin.change_7d)}">${pctArrow(coin.change_7d)} ${Math.abs(coin.change_7d).toFixed(2)}%</td>
+        <td class="num">${fmt.vol(coin.volume_24h)}</td>
+        <td class="num">${fmt.vol(coin.market_cap)}</td>
+        <td>
+          <div class="bar-cell">
+            <span style="color:var(--muted);font-size:10px">${fmt.price(coin.low_24h)}</span>
+            <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:2px;height:4px;position:relative">
+              <div style="position:absolute;left:${pos.toFixed(0)}%;top:-2px;width:8px;height:8px;border-radius:50%;background:${color};transform:translateX(-50%)"></div>
+            </div>
+            <span style="color:var(--muted);font-size:10px">${fmt.price(coin.high_24h)}</span>
+          </div>
+        </td>
+        <td class="num" style="color:var(--muted)">${fmt.datetime(coin.collected_at)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ── Pipeline log ──────────────────────────────────────────────────────
+function renderLog() {
+  const list = document.getElementById('log-list');
+  const runs = data.runs || [];
+
+  if (!runs.length) {
+    list.innerHTML = '<div style="padding:12px;color:var(--muted)">Nenhuma execução registrada ainda.</div>';
+    return;
+  }
+
+  list.innerHTML = runs.map(r => `
+    <div class="log-item">
+      <span class="log-status">${r.status === 'success' ? '✅' : '❌'}</span>
+      <span class="log-time">${fmt.datetime(r.ran_at)}</span>
+      ${r.status === 'success'
+        ? `<span class="log-coins">${r.coins_saved} moedas coletadas</span>`
+        : `<span class="log-error">${r.error || 'erro desconhecido'}</span>`}
+    </div>
+  `).join('');
+}
+
+// ── Countdown ─────────────────────────────────────────────────────────
+function tickCountdown() {
+  countdown--;
+  if (countdown <= 0) {
+    countdown = REFRESH_INTERVAL;
+    fetchData();
+  }
+  const pct = ((REFRESH_INTERVAL - countdown) / REFRESH_INTERVAL * 100);
+  document.getElementById('countdown-fill').style.width = (100 - pct) + '%';
+  const m = Math.floor(countdown / 60);
+  const s = countdown % 60;
+  document.getElementById('countdown-text').textContent =
+    m + ':' + String(s).padStart(2, '0');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────
+fetchData();
+setInterval(tickCountdown, 1000);
+setInterval(fetchData, REFRESH_INTERVAL * 1000);
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.Python
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+
+# Banco de dados (gerado pelo pipeline)
+output/
+
+# JSON exportado (gerado automaticamente)
+web/data.json
+
+# IDEs
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
