@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.Python
+*.egg-info/
+
+# Ambiente virtual
+.venv/
+venv/
+env/
+
+# Variáveis de ambiente — NUNCA commitar chaves!
+.env
+.env.*
+
+# IDEs
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
