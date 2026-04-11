@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FraudScan — Detector de Anomalias Financeiras</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Clash+Display:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07090f;
+  --s1:#0d1117;
+  --s2:#131920;
+  --s3:#1a2230;
+  --border:rgba(255,255,255,0.06);
+  --border2:rgba(255,255,255,0.1);
+  --text:#dce8f0;
+  --muted:#4a6070;
+  --dim:#2a3a4a;
+  --red:#ff2d55;
+  --orange:#ff8c00;
+  --yellow:#ffd60a;
+  --green:#00e676;
+  --blue:#0af;
+  --font-mono:'DM Mono',monospace;
+  --font-disp:'Clash Display','DM Mono',monospace;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--font-mono);font-size:12px;display:flex;flex-direction:column}
+
+/* scanline effect */
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);pointer-events:none;z-index:999}
+
+/* ── Header ── */
+header{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:52px;border-bottom:1px solid var(--border);background:var(--s1);flex-shrink:0}
+.logo{font-family:var(--font-disp);font-size:1.1rem;font-weight:700;letter-spacing:0.05em;display:flex;align-items:center;gap:10px}
+.logo-icon{width:28px;height:28px;border-radius:6px;background:var(--red);display:flex;align-items:center;justify-content:center;font-size:14px}
+.logo-name{color:var(--text)}
+.logo-tag{font-family:var(--font-mono);font-size:10px;color:var(--muted);font-weight:400;letter-spacing:0.1em;border:1px solid var(--border2);padding:2px 6px;border-radius:3px}
+.header-right{display:flex;align-items:center;gap:16px;font-size:11px;color:var(--muted)}
+.live-badge{display:flex;align-items:center;gap:5px;color:var(--green)}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.5s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+
+/* ── Layout ── */
+.shell{display:grid;grid-template-columns:220px 1fr;grid-template-rows:1fr;height:calc(100vh - 52px);overflow:hidden}
+
+/* ── Sidebar ── */
+.sidebar{background:var(--s1);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 0;overflow-y:auto}
+.sidebar-section{padding:0 16px;margin-bottom:20px}
+.sidebar-label{font-size:9px;font-weight:500;letter-spacing:0.15em;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;cursor:pointer;transition:all 0.15s;margin:0 4px;color:var(--muted);font-size:11px}
+.nav-item:hover{background:var(--s2);color:var(--text)}
+.nav-item.active{background:rgba(255,45,85,0.12);color:var(--red);border:1px solid rgba(255,45,85,0.2)}
+.nav-icon{font-size:14px;width:18px;text-align:center}
+
+/* mini stat */
+.mini-stat{background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin:4px 0}
+.mini-stat-label{font-size:9px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase}
+.mini-stat-value{font-family:var(--font-disp);font-size:1.3rem;font-weight:700;margin-top:2px;line-height:1}
+.mini-stat-sub{font-size:10px;margin-top:3px}
+.red{color:var(--red)}.orange{color:var(--orange)}.green{color:var(--green)}.yellow{color:var(--yellow)}.blue{color:var(--blue)}
+
+/* ── Main ── */
+.main{overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+.main::-webkit-scrollbar{width:4px}
+.main::-webkit-scrollbar-thumb{background:var(--dim);border-radius:2px}
+
+/* ── KPI row ── */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.kpi{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:16px;position:relative;overflow:hidden;transition:border-color 0.2s}
+.kpi:hover{border-color:var(--border2)}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--kpi-color,var(--blue))}
+.kpi-label{font-size:10px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px}
+.kpi-value{font-family:var(--font-disp);font-size:1.8rem;font-weight:700;line-height:1;color:var(--kpi-color,var(--text))}
+.kpi-sub{font-size:10px;color:var(--muted);margin-top:6px}
+.kpi-badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:500;margin-top:4px}
+
+/* ── Grid 2-col ── */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+
+/* ── Card ── */
+.card{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:hidden}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.card-title{font-size:10px;font-weight:500;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase}
+.chart-wrap{position:relative}
+
+/* ── Table ── */
+.table-wrap{overflow-x:auto;overflow-y:auto;max-height:320px}
+.table-wrap::-webkit-scrollbar{width:3px;height:3px}
+.table-wrap::-webkit-scrollbar-thumb{background:var(--dim)}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{text-align:left;padding:6px 10px;font-size:9px;font-weight:500;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--s1)}
+td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.02);vertical-align:middle;white-space:nowrap}
+tr:hover td{background:rgba(255,255,255,0.02)}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:3px;font-size:9px;font-weight:600;letter-spacing:0.05em}
+.badge-critical{background:rgba(255,45,85,0.15);color:var(--red);border:1px solid rgba(255,45,85,0.3)}
+.badge-high{background:rgba(255,140,0,0.15);color:var(--orange);border:1px solid rgba(255,140,0,0.3)}
+.badge-medium{background:rgba(255,214,10,0.12);color:var(--yellow);border:1px solid rgba(255,214,10,0.3)}
+.badge-low{background:rgba(0,230,118,0.1);color:var(--green);border:1px solid rgba(0,230,118,0.2)}
+.score-bar-wrap{display:flex;align-items:center;gap:6px}
+.score-bar{height:3px;border-radius:2px;min-width:2px;transition:width 0.3s}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.amount{font-weight:500}
+
+/* ── Risk gauge ── */
+.gauges{display:flex;flex-direction:column;gap:8px}
+.gauge-row{display:flex;align-items:center;gap:8px}
+.gauge-label{font-size:10px;color:var(--muted);width:55px;flex-shrink:0}
+.gauge-track{flex:1;height:6px;background:var(--s3);border-radius:3px;overflow:hidden}
+.gauge-fill{height:100%;border-radius:3px;transition:width 0.5s ease}
+.gauge-val{font-size:10px;width:28px;text-align:right;font-weight:500}
+
+/* ── Scatter ── */
+.scatter-wrap{height:220px}
+
+/* ── Loading ── */
+.loading{display:flex;align-items:center;justify-content:center;height:200px;color:var(--muted);flex-direction:column;gap:8px}
+.spinner{width:20px;height:20px;border-radius:50%;border:2px solid var(--dim);border-top-color:var(--blue);animation:spin 0.7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Alerts ── */
+.alert-list{display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto}
+.alert-list::-webkit-scrollbar{width:3px}
+.alert-list::-webkit-scrollbar-thumb{background:var(--dim)}
+.alert-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:6px;border-left:3px solid;background:rgba(255,255,255,0.02);cursor:default;transition:background 0.15s}
+.alert-item:hover{background: rgba(255,255,255,0.04);}
+.alert-item.critical{border-color:var(--red)}
+.alert-item.high{border-color:var(--orange)}
+.alert-item.medium{border-color:var(--yellow)}
+.alert-icon{font-size:14px;flex-shrink:0;margin-top:1px}
+.alert-body{
+  font-size: 12px;}
+.alert-title{font-size:11px;font-weight:500;margin-bottom:2px}
+.alert-meta{font-size:10px;color:var(--muted)}
+
+/* predict form */
+.predict-form{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.field label{display:block;font-size:9px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px}
+.field input{width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:5px;padding:6px 8px;color:var(--text);font-family:var(--font-mono);font-size:11px;outline:none;transition:border-color 0.15s}
+.field input:focus{border-color:var(--blue)}
+.predict-btn{grid-column:1/-1;padding:9px;background:var(--blue);border:none;border-radius:6px;color:#000;font-family:var(--font-disp);font-size:11px;font-weight:600;letter-spacing:0.08em;cursor:pointer;transition:opacity 0.15s;text-transform:uppercase}
+.predict-btn:hover{opacity:0.85}
+.predict-result{grid-column:1/-1;padding:12px;border-radius:6px;border:1px solid var(--border2);font-size:11px;display:none}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <span class="logo-name">FraudScan</span>
+    <span class="logo-tag">ANOMALY DETECTION v1.0</span>
+  </div>
+  <div class="header-right">
+    <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+    <span id="hdr-total">— transações</span>
+    <span id="hdr-time">—</span>
+  </div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Navegação</div>
+      <div class="nav-item active" onclick="showView('overview')">
+        <span class="nav-icon">◈</span> Overview
+      </div>
+      <div class="nav-item" onclick="showView('anomalies')">
+        <span class="nav-icon">⚠</span> Anomalias
+      </div>
+      <div class="nav-item" onclick="showView('predict')">
+        <span class="nav-icon">⊕</span> Verificar Transação
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Risco em Tempo Real</div>
+      <div class="mini-stat" style="--c:var(--red)">
+        <div class="mini-stat-label">Crítico</div>
+        <div class="mini-stat-value red" id="sb-critical">—</div>
+        <div class="mini-stat-sub red" id="sb-critical-amt">R$ —</div>
+      </div>
+      <div class="mini-stat">
+        <div class="mini-stat-label">Alto</div>
+        <div class="mini-stat-value orange" id="sb-high">—</div>
+      </div>
+      <div class="mini-stat">
+        <div class="mini-stat-label">Médio</div>
+        <div class="mini-stat-value yellow" id="sb-medium">—</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section" style="margin-top:auto">
+      <div class="sidebar-label">Modelo</div>
+      <div style="font-size:10px;color:var(--muted);line-height:1.7">
+        <div>Isolation Forest</div>
+        <div>+ Autoencoder (NumPy)</div>
+        <div style="margin-top:4px;color:var(--blue)" id="sb-f1">F1: —</div>
+        <div style="color:var(--muted)" id="sb-recall">Recall: —</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main" id="main-content">
+    <div class="loading"><div class="spinner"></div><span>Carregando modelo...</span></div>
+  </main>
+
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+let stats = null, anomaliesData = [], timelineData = null;
+let charts = {};
+let currentView = 'overview';
+
+// ── Templates ─────────────────────────────────────────────────────────
+const VIEWS = {
+  overview: () => `
+    <div class="kpi-row" id="kpi-row">
+      ${kpiSkeleton(4)}
+    </div>
+    <div class="grid3">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Anomalias por Dia</span>
+        </div>
+        <div class="chart-wrap" style="height:200px"><canvas id="timeline-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Distribuição de Risco</span></div>
+        <div class="chart-wrap" style="height:200px"><canvas id="risk-chart"></canvas></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Score por Hora do Dia</span></div>
+        <div class="chart-wrap" style="height:180px"><canvas id="hour-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Top Categorias Suspeitas</span></div>
+        <div class="gauges" id="cat-gauges"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Alertas Recentes</span>
+        <span style="font-size:10px;color:var(--muted)" id="alert-count"></span>
+      </div>
+      <div class="alert-list" id="alert-list"></div>
+    </div>
+  `,
+
+  anomalies: () => `
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Todas as Anomalias Detectadas</span>
+        <span style="font-size:10px;color:var(--muted)" id="anomaly-table-count"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>ID</th><th>Timestamp</th><th>Merchant</th>
+            <th>Categoria</th><th class="num">Valor</th>
+            <th>Risco</th><th>Score</th><th>Padrão</th>
+          </tr></thead>
+          <tbody id="anomaly-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Score IF vs AE (scatter)</span></div>
+        <div class="scatter-wrap"><canvas id="scatter-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Distribuição de Valores Suspeitos</span></div>
+        <div class="chart-wrap" style="height:220px"><canvas id="amount-chart"></canvas></div>
+      </div>
+    </div>
+  `,
+
+  predict: () => `
+    <div class="card" style="max-width:600px">
+      <div class="card-header"><span class="card-title">Verificar Nova Transação</span></div>
+      <div class="predict-form" id="predict-form">
+        <div class="field"><label>Valor (R$)</label><input type="number" id="p-amount" value="8500" step="0.01"></div>
+        <div class="field"><label>Hora (0-23)</label><input type="number" id="p-hour" value="3" min="0" max="23"></div>
+        <div class="field"><label>Distância de Casa (km)</label><input type="number" id="p-dist" value="450"></div>
+        <div class="field"><label>Transações na última 1h</label><input type="number" id="p-ntx" value="8"></div>
+        <div class="field"><label>Média de gastos 30d (R$)</label><input type="number" id="p-avg" value="180"></div>
+        <div class="field"><label>É estrangeiro? (0/1)</label><input type="number" id="p-foreign" value="0" min="0" max="1"></div>
+        <button class="predict-btn" onclick="runPredict()">⚡ Analisar Transação</button>
+        <div class="predict-result" id="predict-result"></div>
+      </div>
+    </div>
+  `,
+};
+
+function kpiSkeleton(n) {
+  return Array(n).fill('<div class="kpi"><div class="kpi-label">—</div><div class="kpi-value" style="color:var(--dim)">...</div></div>').join('');
+}
+
+// ── Navigation ────────────────────────────────────────────────────────
+function showView(view) {
+  currentView = view;
+  document.querySelectorAll('.nav-item').forEach((el, i) => {
+    el.classList.toggle('active', ['overview','anomalies','predict'][i] === view);
+  });
+  const main = document.getElementById('main-content');
+  main.innerHTML = VIEWS[view]();
+  if (view === 'overview') renderOverview();
+  if (view === 'anomalies') renderAnomalies();
+}
+
+// ── Fetch ─────────────────────────────────────────────────────────────
+async function loadAll() {
+  try {
+    [stats, timelineData] = await Promise.all([
+      fetch(API+'/stats').then(r=>r.json()),
+      fetch(API+'/timeline').then(r=>r.json()),
+    ]);
+    const anom = await fetch(API+'/anomalies?limit=200').then(r=>r.json());
+    anomaliesData = anom.data || [];
+
+    updateSidebar();
+    showView('overview');
+    updateHeader();
+    setInterval(updateHeader, 5000);
+  } catch(e) {
+    document.getElementById('main-content').innerHTML = `
+      <div class="loading">
+        <span style="color:var(--red)">⚠ Servidor offline</span>
+        <span style="color:var(--muted)">Execute: python main.py</span>
+      </div>`;
+  }
+}
+
+function updateHeader() {
+  document.getElementById('hdr-total').textContent =
+    (stats?.total_transactions||0).toLocaleString('pt-BR') + ' transações';
+  document.getElementById('hdr-time').textContent =
+    new Date().toLocaleTimeString('pt-BR');
+}
+
+function updateSidebar() {
+  if (!stats) return;
+  const rd = stats.risk_distribution || {};
+  document.getElementById('sb-critical').textContent = rd['Crítico'] || 0;
+  document.getElementById('sb-high').textContent = rd['Alto'] || 0;
+  document.getElementById('sb-medium').textContent = rd['Médio'] || 0;
+  document.getElementById('sb-critical-amt').textContent =
+    'R$ ' + fmtNum(stats.total_at_risk);
+}
+
+async function loadModel() {
+  const h = await fetch(API+'/health').then(r=>r.json()).catch(()=>({}));
+  const m = h.metrics || {};
+  document.getElementById('sb-f1').textContent = 'F1: ' + (m.f1||'—');
+  document.getElementById('sb-recall').textContent = 'Recall: ' + (m.recall||'—');
+}
+
+// ── Overview ──────────────────────────────────────────────────────────
+function renderOverview() {
+  if (!stats) return;
+  const rd = stats.risk_distribution || {};
+
+  // KPIs
+  document.getElementById('kpi-row').innerHTML = `
+    <div class="kpi" style="--kpi-color:var(--blue)">
+      <div class="kpi-label">Total de Transações</div>
+      <div class="kpi-value">${fmtNum(stats.total_transactions)}</div>
+      <div class="kpi-sub">últimos 30 dias</div>
+    </div>
+    <div class="kpi" style="--kpi-color:var(--red)">
+      <div class="kpi-label">Anomalias Detectadas</div>
+      <div class="kpi-value red">${stats.total_anomalies}</div>
+      <div class="kpi-sub">${stats.anomaly_rate}% do total</div>
+    </div>
+    <div class="kpi" style="--kpi-color:var(--orange)">
+      <div class="kpi-label">Valor em Risco</div>
+      <div class="kpi-value orange">R$${fmtNum(stats.total_at_risk)}</div>
+      <div class="kpi-sub">ticket médio R$${fmtNum(stats.avg_fraud_amount)}</div>
+    </div>
+    <div class="kpi" style="--kpi-color:var(--green)">
+      <div class="kpi-label">Transações Seguras</div>
+      <div class="kpi-value green">${fmtNum(stats.total_transactions - stats.total_anomalies)}</div>
+      <div class="kpi-sub">${(100 - stats.anomaly_rate).toFixed(1)}% aprovadas</div>
+    </div>
+  `;
+
+  // Timeline chart
+  if (timelineData?.daily?.length) {
+    const daily = timelineData.daily;
+    const ctx = document.getElementById('timeline-chart').getContext('2d');
+    charts.timeline = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: daily.map(d => d.date.slice(5)),
+        datasets: [
+          { label: 'Normal', data: daily.map(d => d.total - d.anomalies),
+            backgroundColor: 'rgba(0,170,255,0.2)', borderColor: 'rgba(0,170,255,0.6)', borderWidth: 1 },
+          { label: 'Anomalia', data: daily.map(d => d.anomalies),
+            backgroundColor: 'rgba(255,45,85,0.5)', borderColor: 'rgba(255,45,85,0.8)', borderWidth: 1 },
+        ]
+      },
+      options: { responsive:true, maintainAspectRatio:false, animation:{duration:600},
+        plugins:{legend:{labels:{color:'#4a6070',font:{family:'DM Mono',size:10}}}},
+        scales: {
+          x:{stacked:true,grid:{color:'rgba(255,255,255,0.03)'},ticks:{color:'#4a6070',font:{family:'DM Mono',size:9}}},
+          y:{stacked:true,grid:{color:'rgba(255,255,255,0.03)'},ticks:{color:'#4a6070',font:{family:'DM Mono',size:9}}},
+        }
+      }
+    });
+  }
+
+  // Risk doughnut
+  const riskCtx = document.getElementById('risk-chart').getContext('2d');
+  const riskLabels = ['Crítico','Alto','Médio','Baixo'];
+  const riskColors = ['rgba(255,45,85,0.8)','rgba(255,140,0,0.8)','rgba(255,214,10,0.7)','rgba(0,230,118,0.5)'];
+  charts.risk = new Chart(riskCtx, {
+    type: 'doughnut',
+    data: {
+      labels: riskLabels,
+      datasets: [{
+        data: riskLabels.map(l => rd[l] || 0),
+        backgroundColor: riskColors,
+        borderColor: 'transparent', borderWidth: 2,
+      }]
+    },
+    options: { responsive:true, maintainAspectRatio:false, cutout:'65%',
+      plugins:{legend:{position:'right',labels:{color:'#4a6070',font:{family:'DM Mono',size:10},boxWidth:10}}}
+    }
+  });
+
+  // Hour chart
+  if (timelineData?.hourly?.length) {
+    const h = timelineData.hourly;
+    const hCtx = document.getElementById('hour-chart').getContext('2d');
+    charts.hour = new Chart(hCtx, {
+      type: 'line',
+      data: {
+        labels: h.map(d => d.hour+'h'),
+        datasets: [{
+          label: 'Anomalias',
+          data: h.map(d => d.anomalies),
+          borderColor: 'rgba(255,45,85,0.8)', borderWidth: 1.5,
+          pointRadius: 3, pointBackgroundColor: 'var(--red)',
+          fill: true,
+          backgroundColor: ctx => {
+            const g = ctx.chart.ctx.createLinearGradient(0,0,0,180);
+            g.addColorStop(0,'rgba(255,45,85,0.2)');
+            g.addColorStop(1,'rgba(255,45,85,0)');
+            return g;
+          },
+          tension: 0.4,
+        }]
+      },
+      options: { responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
+        scales: {
+          x:{grid:{color:'rgba(255,255,255,0.03)'},ticks:{color:'#4a6070',font:{family:'DM Mono',size:9}}},
+          y:{grid:{color:'rgba(255,255,255,0.03)'},ticks:{color:'#4a6070',font:{family:'DM Mono',size:9}}},
+        }
+      }
+    });
+  }
+
+  // Category gauges
+  const cats = stats.top_fraud_categories || {};
+  const maxCat = Math.max(...Object.values(cats), 1);
+  const gaugesEl = document.getElementById('cat-gauges');
+  const catColors = ['var(--red)','var(--orange)','var(--yellow)','var(--blue)','var(--green)'];
+  gaugesEl.innerHTML = Object.entries(cats).map(([cat, count], i) => `
+    <div class="gauge-row">
+      <div class="gauge-label" title="${cat}">${cat.slice(0,10)}</div>
+      <div class="gauge-track">
+        <div class="gauge-fill" style="width:${(count/maxCat*100).toFixed(0)}%;background:${catColors[i%5]}"></div>
+      </div>
+      <div class="gauge-val" style="color:${catColors[i%5]}">${count}</div>
+    </div>
+  `).join('');
+
+  // Alerts
+  const topAnomalies = anomaliesData.slice(0, 12);
+  document.getElementById('alert-count').textContent = anomaliesData.length + ' alertas';
+  document.getElementById('alert-list').innerHTML = topAnomalies.map(tx => {
+    const risk = tx.risk_level || 'Baixo';
+    const cls = risk === 'Crítico' ? 'critical' : risk === 'Alto' ? 'high' : 'medium';
+    const icon = risk === 'Crítico' ? '🚨' : risk === 'Alto' ? '⚠️' : '👁️';
+    return `
+      <div class="alert-item ${cls}">
+        <span class="alert-icon">${icon}</span>
+        <div class="alert-body">
+          <div class="alert-title">${tx.merchant || '—'} · R$ ${fmtNum(tx.amount)}</div>
+          <div class="alert-meta">${tx.transaction_id} · ${tx.category} · score ${(tx.hybrid_score*100).toFixed(0)}%
+            ${tx.fraud_pattern ? ' · '+tx.fraud_pattern : ''}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── Anomalies view ────────────────────────────────────────────────────
+function renderAnomalies() {
+  const tbody = document.getElementById('anomaly-tbody');
+  document.getElementById('anomaly-table-count').textContent =
+    anomaliesData.length + ' registros';
+
+  tbody.innerHTML = anomaliesData.map(tx => {
+    const risk = tx.risk_level || 'Baixo';
+    const badgeCls = {Crítico:'critical',Alto:'high',Médio:'medium',Baixo:'low'}[risk] || 'low';
+    const score = tx.hybrid_score || 0;
+    const barColor = risk==='Crítico'?'var(--red)':risk==='Alto'?'var(--orange)':risk==='Médio'?'var(--yellow)':'var(--green)';
+    const ts = tx.timestamp ? tx.timestamp.slice(0,16).replace('T',' ') : '—';
+    return `
+      <tr>
+        <td style="color:var(--muted);font-size:10px">${tx.transaction_id}</td>
+        <td style="color:var(--muted)">${ts}</td>
+        <td>${tx.merchant||'—'}</td>
+        <td style="color:var(--muted)">${tx.category||'—'}</td>
+        <td class="num amount">R$ ${fmtNum(tx.amount)}</td>
+        <td><span class="badge badge-${badgeCls}">${risk}</span></td>
+        <td>
+          <div class="score-bar-wrap">
+            <div class="score-bar" style="width:${(score*60).toFixed(0)}px;background:${barColor}"></div>
+            <span style="font-size:10px;color:var(--muted)">${(score*100).toFixed(0)}%</span>
+          </div>
+        </td>
+        <td style="color:var(--muted);font-size:10px;max-width:140px;overflow:hidden;text-overflow:ellipsis">${tx.fraud_pattern||'—'}</td>
+      </tr>
+    `;
+  }).join('');
+
+  // Scatter
+  const scatterCtx = document.getElementById('scatter-chart').getContext('2d');
+  const scatterData = anomaliesData.map(tx => ({
+    x: tx.if_score || 0,
+    y: tx.ae_score || 0,
+    risk: tx.risk_level,
+  }));
+  const colorMap = {Crítico:'rgba(255,45,85,0.8)',Alto:'rgba(255,140,0,0.7)',Médio:'rgba(255,214,10,0.6)',Baixo:'rgba(0,230,118,0.5)'};
+  charts.scatter = new Chart(scatterCtx, {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        label: 'Anomalias',
+        data: scatterData,
+        backgroundColor: scatterData.map(d => colorMap[d.risk]||'rgba(0,170,255,0.5)'),
+        pointRadius: 5, pointHoverRadius: 7,
+      }]
+    },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{
+        label: ctx => `IF:${ctx.parsed.x.toFixed(2)} AE:${ctx.parsed.y.toFixed(2)}`,
+      }}},
+      scales:{
+        x:{title:{display:true,text:'Isolation Forest Score',color:'#4a6070',font:{family:'DM Mono',size:9}},grid:{color:'rgba(255,255,255,0.03)'},ticks:{color:'#4a6070',font:{family:'DM Mono',size:9}}},
+        y:{title:{display:true,text:'Autoencoder Score',color:'#4a6070',font:{family:'DM Mono',size:9}},grid:{color:'rgba(255,255,255,0.03)'},ticks:{color:'#4a6070',font:{family:'DM Mono',size:9}}},
+      }
+    }
+  });
+
+  // Amount distribution
+  const amounts = anomaliesData.map(t => t.amount || 0);
+  const bins = [0,100,500,1000,2000,5000,10000,Infinity];
+  const binLabels = ['<100','100-500','500-1k','1k-2k','2k-5k','5k-10k','>10k'];
+  const binCounts = binLabels.map((_,i) => amounts.filter(a=>a>=bins[i]&&a<bins[i+1]).length);
+  const amtCtx = document.getElementById('amount-chart').getContext('2d');
+  charts.amount = new Chart(amtCtx, {
+    type: 'bar',
+    data: {
+      labels: binLabels,
+      datasets: [{
+        data: binCounts,
+        backgroundColor: 'rgba(255,45,85,0.4)',
+        borderColor: 'rgba(255,45,85,0.8)', borderWidth: 1, borderRadius: 3,
+      }]
+    },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,0.03)'},ticks:{color:'#4a6070',font:{family:'DM Mono',size:9}}},
+        y:{grid:{color:'rgba(255,255,255,0.03)'},ticks:{color:'#4a6070',font:{family:'DM Mono',size:9}}},
+      }
+    }
+  });
+}
+
+// ── Predict ───────────────────────────────────────────────────────────
+async function runPredict() {
+  const body = {
+    amount: +document.getElementById('p-amount').value,
+    hour: +document.getElementById('p-hour').value,
+    day_of_week: new Date().getDay(),
+    distance_from_home: +document.getElementById('p-dist').value,
+    n_transactions_1h: +document.getElementById('p-ntx').value,
+    avg_amount_30d: +document.getElementById('p-avg').value,
+    is_foreign: +document.getElementById('p-foreign').value,
+    is_night: +document.getElementById('p-hour').value <= 5 || +document.getElementById('p-hour').value >= 22 ? 1 : 0,
+    amount_ratio: +document.getElementById('p-amount').value / (+document.getElementById('p-avg').value||1),
+    v1:0,v2:0,v3:0,v4:0,
+  };
+  const res = await fetch(API+'/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const data = await res.json();
+  const el = document.getElementById('predict-result');
+  const risk = data.risk_level;
+  const colorMap = {Crítico:'var(--red)',Alto:'var(--orange)',Médio:'var(--yellow)',Baixo:'var(--green)'};
+  const color = colorMap[risk] || 'var(--blue)';
+  el.style.display = 'block';
+  el.style.borderColor = color;
+  el.style.background = `${color}10`;
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-size:1.1rem;font-weight:700;color:${color}">${data.is_anomaly?'⚠ ANOMALIA DETECTADA':'✅ TRANSAÇÃO NORMAL'}</span>
+      <span style="font-size:1.2rem;font-weight:700;color:${color}">${risk}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+      <div><div style="color:var(--muted);font-size:9px;margin-bottom:2px">SCORE HÍBRIDO</div><div style="color:${color};font-size:1rem;font-weight:600">${(data.hybrid_score*100).toFixed(1)}%</div></div>
+      <div><div style="color:var(--muted);font-size:9px;margin-bottom:2px">ISOLATION FOREST</div><div style="color:var(--blue)">${(data.if_score*100).toFixed(1)}%</div></div>
+      <div><div style="color:var(--muted);font-size:9px;margin-bottom:2px">AUTOENCODER</div><div style="color:var(--orange)">${(data.ae_score*100).toFixed(1)}%</div></div>
+    </div>
+    <div style="color:${color};font-size:11px">${data.recommendation}</div>
+  `;
+}
+
+// ── Utils ─────────────────────────────────────────────────────────────
+function fmtNum(n) {
+  if (!n && n!==0) return '—';
+  if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1)+'k';
+  return (+n).toFixed(2);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────
+loadAll();
+loadModel();
+</script>
+</body>
+</html>
