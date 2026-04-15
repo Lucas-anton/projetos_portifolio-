@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DemandIQ — Previsão de Demanda E-commerce</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0a0c0f;
+  --bg:#f2efe9;
+  --s1:#ece9e2;
+  --s2:#e4e0d8;
+  --s3:#d8d3c8;
+  --border:rgba(10,12,15,0.1);
+  --border2:rgba(10,12,15,0.18);
+  --text:#0a0c0f;
+  --muted:#7a7268;
+  --dim:#b8b3a8;
+  --accent:#c8401a;
+  --accent2:#1a6bc8;
+  --green:#1a7a3c;
+  --amber:#c87a00;
+  --font-serif:'Instrument Serif',Georgia,serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --r:10px;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--font-mono);font-size:12px;display:flex;flex-direction:column}
+
+/* ── Header ── */
+header{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 28px;height:56px;border-bottom:1px solid var(--border);background:var(--bg);flex-shrink:0;position:relative;z-index:10}
+.logo{display:flex;align-items:baseline;gap:8px}
+.logo-name{font-family:var(--font-serif);font-size:1.4rem;font-style:italic;color:var(--text);letter-spacing:-0.01em}
+.logo-tag{font-size:10px;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase}
+.header-center{display:flex;gap:4px}
+.htab{padding:6px 14px;border-radius:6px;font-size:10px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;border:none;background:transparent;color:var(--muted);transition:all 0.15s}
+.htab:hover{color:var(--text);background:var(--s2)}
+.htab.active{background:var(--ink);color:var(--bg)}
+.header-right{display:flex;justify-content:flex-end;align-items:center;gap:12px;font-size:11px;color:var(--muted)}
+.status-pill{display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;border:1px solid var(--border2);background:var(--s1)}
+.sdot{width:5px;height:5px;border-radius:50%;background:var(--green)}
+
+/* ── Shell ── */
+.shell{display:flex;flex:1;overflow:hidden}
+
+/* ── Sidebar ── */
+.sidebar{width:240px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 0;background:var(--bg);overflow-y:auto}
+.sidebar::-webkit-scrollbar{width:0}
+.sb-section{padding:0 12px;margin-bottom:20px}
+.sb-label{font-size:9px;font-weight:600;letter-spacing:0.15em;color:var(--dim);text-transform:uppercase;margin-bottom:8px;padding:0 4px}
+.product-btn{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border-radius:7px;border:1px solid transparent;background:transparent;cursor:pointer;text-align:left;transition:all 0.12s;font-family:var(--font-mono)}
+.product-btn:hover{background:var(--s1);border-color:var(--border)}
+.product-btn.active{background:white;border-color:var(--border2);box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.prod-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.prod-info{flex:1;min-width:0}
+.prod-name{font-size:11px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prod-cat{font-size:9px;color:var(--muted);margin-top:1px}
+.prod-badge{font-size:9px;color:var(--muted);font-weight:500}
+
+/* ── Main ── */
+.main{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:16px;background:var(--bg)}
+.main::-webkit-scrollbar{width:4px}
+.main::-webkit-scrollbar-thumb{background:var(--s3);border-radius:2px}
+
+/* ── KPI row ── */
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.kpi{background:white;border:1px solid var(--border);border-radius:var(--r);padding:16px;position:relative;transition:box-shadow 0.15s}
+.kpi:hover{box-shadow:0 4px 12px rgba(0,0,0,0.06)}
+.kpi-label{font-size:9px;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:10px}
+.kpi-value{font-family:var(--font-serif);font-size:1.9rem;font-style:italic;letter-spacing:-0.02em;line-height:1;color:var(--kpi-color,var(--text))}
+.kpi-sub{font-size:10px;color:var(--muted);margin-top:6px}
+.kpi-delta{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:500;margin-top:4px}
+.delta-up{color:var(--green)}.delta-down{color:var(--accent)}
+
+/* ── Row 2: main chart + mini ── */
+.chart-row{display:grid;grid-template-columns:1fr 320px;gap:16px}
+.card{background:white;border:1px solid var(--border);border-radius:var(--r);padding:20px;overflow:hidden}
+.card-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px}
+.card-title{font-family:var(--font-serif);font-size:1rem;font-style:italic;color:var(--text)}
+.card-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.card-meta{font-size:10px;color:var(--muted);text-align:right}
+
+/* ── Forecast chart ── */
+#forecast-wrap{height:260px;position:relative}
+.forecast-legend{display:flex;gap:12px;margin-top:8px}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted)}
+.leg-dot{width:8px;height:3px;border-radius:2px}
+
+/* ── Product detail panel ── */
+.product-panel{display:grid;grid-template-rows:auto 1fr;gap:12px}
+.product-header{background:white;border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.product-name-big{font-family:var(--font-serif);font-size:1.1rem;font-style:italic;margin-bottom:4px}
+.product-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.pstat{background:var(--s1);border-radius:6px;padding:8px 10px}
+.pstat-label{font-size:9px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase}
+.pstat-value{font-size:1rem;font-weight:500;margin-top:2px}
+
+/* ── Grid row ── */
+.grid-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.chart-sm{height:180px}
+
+/* ── Top products table ── */
+.table-wrap{overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{text-align:left;padding:6px 10px;font-size:9px;font-weight:600;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--border)}
+td{padding:9px 10px;border-bottom:1px solid rgba(0,0,0,0.04);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--s1)}
+.rank{font-size:10px;color:var(--dim);font-weight:500;width:24px}
+.bar-cell{display:flex;align-items:center;gap:6px}
+.bar-fill{height:4px;border-radius:2px}
+.txt-right{text-align:right}
+.txt-green{color:var(--green)}.txt-red{color:var(--accent)}.txt-amber{color:var(--amber)}
+.txt-muted{color:var(--muted)}
+
+/* ── Metric pills ── */
+.pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:9px;font-weight:500;border:1px solid}
+.pill-green{background:rgba(26,122,60,0.08);color:var(--green);border-color:rgba(26,122,60,0.2)}
+.pill-red{background:rgba(200,64,26,0.08);color:var(--accent);border-color:rgba(200,64,26,0.2)}
+.pill-amber{background:rgba(200,122,0,0.08);color:var(--amber);border-color:rgba(200,122,0,0.2)}
+.pill-blue{background:rgba(26,107,200,0.08);color:var(--accent2);border-color:rgba(26,107,200,0.2)}
+
+/* ── Loading ── */
+.loading{display:flex;align-items:center;justify-content:center;height:200px;color:var(--muted);gap:8px;flex-direction:column}
+.spinner{width:18px;height:18px;border-radius:50%;border:2px solid var(--s3);border-top-color:var(--text);animation:spin 0.7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Category colors ── */
+.c-bebidas{background:#1a6bc8}.c-laticinios{background:#c8401a}.c-snacks{background:#c87a00}
+.c-hortifruti{background:#1a7a3c}.c-padaria{background:#7a1a6b}.c-congelados{background:#1a7a7a}
+.c-higiene{background:#6b7a1a}.c-limpeza{background:#7a4a1a}.c-eletronicos{background:#1a3a7a}
+
+/* ── Chart defaults ── */
+canvas{max-width:100%}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="logo-name">DemandIQ</span>
+    <span class="logo-tag">Forecast Engine</span>
+  </div>
+  <div class="header-center">
+    <button class="htab active" onclick="switchTab('overview',this)">Overview</button>
+    <button class="htab" onclick="switchTab('forecast',this)">Previsão</button>
+    <button class="htab" onclick="switchTab('products',this)">Produtos</button>
+  </div>
+  <div class="header-right">
+    <div class="status-pill">
+      <div class="sdot" id="status-dot"></div>
+      <span id="status-text">carregando...</span>
+    </div>
+    <span id="hdr-range" style="font-size:10px"></span>
+  </div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sb-section">
+      <div class="sb-label">Produtos</div>
+      <div id="product-list">
+        <div class="loading" style="height:120px"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main" id="main"></main>
+
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+let allProducts = [], summary = null, overview = null;
+let selectedProduct = null;
+let charts = {};
+let currentTab = 'overview';
+
+const CAT_COLORS = {
+  'Bebidas':'#1a6bc8','Laticínios':'#c8401a','Snacks':'#c87a00',
+  'Hortifruti':'#1a7a3c','Padaria':'#7a1a6b','Congelados':'#1a7a7a',
+  'Higiene':'#6b7a1a','Limpeza':'#7a4a1a','Eletrônicos':'#1a3a7a',
+};
+const PROD_COLORS = ['#1a6bc8','#c8401a','#c87a00','#1a7a3c','#7a1a6b',
+                     '#1a7a7a','#6b7a1a','#7a4a1a','#1a3a7a','#8a5a1a',
+                     '#5a1a8a','#1a5a8a','#8a1a5a','#1a8a5a','#5a8a1a'];
+
+const CHART_DEFAULTS = {
+  plugins:{legend:{display:false}},
+  scales:{
+    x:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#7a7268',font:{family:'JetBrains Mono',size:9}}},
+    y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#7a7268',font:{family:'JetBrains Mono',size:9}}},
+  }
+};
+
+// ── Init ───────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    [allProducts, summary, overview] = await Promise.all([
+      fetch(API+'/products').then(r=>r.json()).then(d=>d.products),
+      fetch(API+'/dashboard/summary').then(r=>r.json()),
+      fetch(API+'/dashboard/overview').then(r=>r.json()),
+    ]);
+
+    renderSidebar();
+    selectedProduct = allProducts[0]?.id || null;
+    renderTab('overview');
+    updateStatus(true);
+
+    if (summary.date_range) {
+      document.getElementById('hdr-range').textContent =
+        summary.date_range.start + ' → ' + summary.date_range.end;
+    }
+  } catch(e) {
+    document.getElementById('main').innerHTML =
+      `<div class="loading"><span style="color:var(--accent)">⚠ Servidor offline</span><span style="color:var(--muted)">Execute: python main.py</span></div>`;
+    updateStatus(false);
+  }
+}
+
+function updateStatus(ok) {
+  document.getElementById('status-dot').style.background = ok ? 'var(--green)' : 'var(--accent)';
+  document.getElementById('status-text').textContent = ok ? 'modelo ativo' : 'offline';
+}
+
+// ── Sidebar ─────────────────────────────────────────────────────────────
+function renderSidebar() {
+  const list = document.getElementById('product-list');
+  list.innerHTML = allProducts.map((p, i) => `
+    <button class="product-btn ${p.id === selectedProduct ? 'active' : ''}"
+            onclick="selectProduct('${p.id}')">
+      <div class="prod-dot" style="background:${PROD_COLORS[i%PROD_COLORS.length]}"></div>
+      <div class="prod-info">
+        <div class="prod-name">${p.name}</div>
+        <div class="prod-cat">${p.category}</div>
+      </div>
+      <div class="prod-badge">${p.avg_daily_sales}/d</div>
+    </button>
+  `).join('');
+}
+
+function selectProduct(id) {
+  selectedProduct = id;
+  renderSidebar();
+  if (currentTab === 'forecast' || currentTab === 'products') {
+    renderTab(currentTab);
+  }
+}
+
+// ── Navigation ───────────────────────────────────────────────────────────
+function switchTab(tab, el) {
+  currentTab = tab;
+  document.querySelectorAll('.htab').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  destroyCharts();
+  renderTab(tab);
+}
+
+function destroyCharts() {
+  Object.values(charts).forEach(c => { try { c.destroy(); } catch {} });
+  charts = {};
+}
+
+function renderTab(tab) {
+  if (tab === 'overview') renderOverview();
+  else if (tab === 'forecast') renderForecastTab();
+  else if (tab === 'products') renderProductsTab();
+}
+
+// ── Overview ─────────────────────────────────────────────────────────────
+function renderOverview() {
+  const m = document.getElementById('main');
+  m.innerHTML = `
+    <div class="kpi-row" id="kpi-row"></div>
+    <div class="chart-row">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Volume de Vendas Diário</div>
+            <div class="card-sub">Todos os produtos · últimos 365 dias</div>
+          </div>
+        </div>
+        <div style="height:240px"><canvas id="daily-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Vendas por Categoria</div>
+        </div>
+        <div style="height:240px"><canvas id="cat-chart"></canvas></div>
+      </div>
+    </div>
+    <div class="grid-row">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Padrão Semanal</div></div>
+        <div class="chart-sm"><canvas id="dow-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Sazonalidade Mensal</div></div>
+        <div class="chart-sm"><canvas id="month-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Top 5 — Últimos 30 dias</div></div>
+        <div class="table-wrap" style="margin-top:-4px">
+          <table><tbody id="top-table"></tbody></table>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // KPIs
+  const krow = document.getElementById('kpi-row');
+  const growthCls = summary.units_growth >= 0 ? 'delta-up' : 'delta-down';
+  const growthArrow = summary.units_growth >= 0 ? '▲' : '▼';
+  krow.innerHTML = `
+    <div class="kpi" style="--kpi-color:var(--text)">
+      <div class="kpi-label">Receita Total</div>
+      <div class="kpi-value">R$${fmtM(summary.total_revenue)}</div>
+      <div class="kpi-sub">período completo</div>
+    </div>
+    <div class="kpi" style="--kpi-color:var(--accent2)">
+      <div class="kpi-label">Unidades (30d)</div>
+      <div class="kpi-value">${fmtK(summary.last_30d_units)}</div>
+      <div class="kpi-delta ${growthCls}">${growthArrow} ${Math.abs(summary.units_growth)}% vs período anterior</div>
+    </div>
+    <div class="kpi" style="--kpi-color:var(--text)">
+      <div class="kpi-label">Média Diária</div>
+      <div class="kpi-value">${summary.avg_daily_units}</div>
+      <div class="kpi-sub">unidades/dia</div>
+    </div>
+    <div class="kpi" style="--kpi-color:var(--text)">
+      <div class="kpi-label">Produtos Ativos</div>
+      <div class="kpi-value">${summary.total_products}</div>
+      <div class="kpi-sub">SKUs monitorados</div>
+    </div>
+    <div class="kpi" style="--kpi-color:var(--green)">
+      <div class="kpi-label">Modelo ML</div>
+      <div class="kpi-value" style="font-size:1.1rem;padding-top:4px">
+        <span class="pill pill-green">GBM ativo</span>
+      </div>
+      <div class="kpi-sub">Gradient Boosting</div>
+    </div>
+  `;
+
+  // Daily chart (weekly aggregation for readability)
+  const daily = overview.daily_total || [];
+  const weekly = aggregateWeekly(daily);
+  const dCtx = document.getElementById('daily-chart').getContext('2d');
+  charts.daily = new Chart(dCtx, {
+    type: 'line',
+    data: {
+      labels: weekly.map(d => d.date.slice(5)),
+      datasets: [{
+        data: weekly.map(d => d.quantity),
+        borderColor: '#0a0c0f', borderWidth: 1.5,
+        pointRadius: 0, fill: true,
+        tension: 0.3,
+        backgroundColor: ctx => {
+          const g = ctx.chart.ctx.createLinearGradient(0,0,0,240);
+          g.addColorStop(0,'rgba(10,12,15,0.08)');
+          g.addColorStop(1,'rgba(10,12,15,0)');
+          return g;
+        }
+      }]
+    },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+fmtK(ctx.parsed.y)+' un'}}},
+      scales:{
+        x:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#7a7268',font:{family:'JetBrains Mono',size:9},maxTicksLimit:12}},
+        y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#7a7268',font:{family:'JetBrains Mono',size:9},callback:v=>fmtK(v)}},
+      }
+    }
+  });
+
+  // Category doughnut
+  const catData = overview.category_sales || {};
+  const catLabels = Object.keys(catData);
+  const catCtx = document.getElementById('cat-chart').getContext('2d');
+  charts.cat = new Chart(catCtx, {
+    type: 'doughnut',
+    data: {
+      labels: catLabels,
+      datasets: [{
+        data: Object.values(catData),
+        backgroundColor: catLabels.map(c => CAT_COLORS[c] || '#888'),
+        borderColor: 'white', borderWidth: 3,
+      }]
+    },
+    options: { responsive:true, maintainAspectRatio:false, cutout:'60%',
+      plugins:{legend:{position:'right',labels:{color:'#7a7268',font:{family:'JetBrains Mono',size:10},boxWidth:10,padding:8}}}
+    }
+  });
+
+  // Day of week
+  const dow = overview.dow_sales || {};
+  const dowLabels = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  const dowCtx = document.getElementById('dow-chart').getContext('2d');
+  charts.dow = new Chart(dowCtx, {
+    type: 'bar',
+    data: {
+      labels: dowLabels,
+      datasets: [{
+        data: dowLabels.map((_,i) => dow[i] || 0),
+        backgroundColor: dowLabels.map((_,i) => i >= 5 ? 'rgba(10,12,15,0.8)' : 'rgba(10,12,15,0.25)'),
+        borderRadius: 4, borderSkipped: false,
+      }]
+    },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#7a7268',font:{family:'JetBrains Mono',size:9}}},
+        y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#7a7268',font:{family:'JetBrains Mono',size:9}}},
+      }
+    }
+  });
+
+  // Monthly
+  const monthly = overview.monthly_sales || {};
+  const mLabels = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const mCtx = document.getElementById('month-chart').getContext('2d');
+  charts.month = new Chart(mCtx, {
+    type: 'bar',
+    data: {
+      labels: mLabels,
+      datasets: [{
+        data: mLabels.map((_,i) => monthly[i+1] || 0),
+        backgroundColor: 'rgba(10,12,15,0.25)',
+        borderRadius: 3, borderSkipped: false,
+      }]
+    },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#7a7268',font:{family:'JetBrains Mono',size:9}}},
+        y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#7a7268',font:{family:'JetBrains Mono',size:9},callback:v=>fmtK(v)}},
+      }
+    }
+  });
+
+  // Top table
+  const top = summary.top_products || [];
+  const maxRev = Math.max(...top.map(p => p.revenue), 1);
+  document.getElementById('top-table').innerHTML = top.map((p, i) => `
+    <tr>
+      <td class="rank">#${i+1}</td>
+      <td style="font-size:11px">${p.name}</td>
+      <td>
+        <div class="bar-cell">
+          <div class="bar-fill" style="width:${(p.revenue/maxRev*80).toFixed(0)}px;background:var(--ink)"></div>
+          <span class="txt-muted">R$${fmtK(p.revenue)}</span>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// ── Forecast tab ──────────────────────────────────────────────────────────
+async function renderForecastTab() {
+  const m = document.getElementById('main');
+  const prod = allProducts.find(p => p.id === selectedProduct);
+  if (!prod) return;
+
+  m.innerHTML = `<div class="loading"><div class="spinner"></div><span>Calculando previsão...</span></div>`;
+
+  const [history, forecast] = await Promise.all([
+    fetch(API+`/products/${selectedProduct}/history?days=90`).then(r=>r.json()),
+    fetch(API+`/products/${selectedProduct}/forecast?horizon=30`).then(r=>r.json()),
+  ]);
+
+  const color = PROD_COLORS[allProducts.findIndex(p=>p.id===selectedProduct) % PROD_COLORS.length];
+
+  m.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">${prod.name}</div>
+          <div class="card-sub">${prod.category} · R$ ${prod.price} · MAE: ${forecast.mae} unidades · MAPE: ${forecast.mape}%</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <span class="pill pill-blue">GBM + Feature Eng.</span>
+          <span class="pill pill-green">30 dias</span>
+        </div>
+      </div>
+      <div style="height:300px"><canvas id="forecast-chart"></canvas></div>
+      <div class="forecast-legend" style="margin-top:12px">
+        <div class="leg-item"><div class="leg-dot" style="background:${color}"></div> Histórico real</div>
+        <div class="leg-item"><div class="leg-dot" style="background:${color};opacity:0.4"></div> Previsão</div>
+        <div class="leg-item"><div class="leg-dot" style="background:${color};opacity:0.15;height:8px;width:16px"></div> Intervalo de confiança</div>
+      </div>
+    </div>
+    <div class="grid-row">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Próximos 30 dias</div></div>
+        <div style="height:180px"><canvas id="forecast-bar"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Padrão Semanal</div></div>
+        <div style="height:180px"><canvas id="prod-dow"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Métricas do Produto</div></div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+          ${metricRow('Preço de venda','R$ '+prod.price,'blue')}
+          ${metricRow('Custo','R$ '+prod.cost,null)}
+          ${metricRow('Margem bruta',((prod.price-prod.cost)/prod.price*100).toFixed(1)+'%','green')}
+          ${metricRow('Média diária',prod.avg_daily_sales+' un',null)}
+          ${metricRow('MAE do modelo',forecast.mae+' un','amber')}
+          ${metricRow('MAPE',forecast.mape+'%',forecast.mape<15?'green':'amber')}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Forecast chart (history + forecast)
+  const histDaily = history.daily || [];
+  const histDates = histDaily.map(d => d.date);
+  const histQty   = histDaily.map(d => d.quantity);
+  const fcDates   = forecast.forecast.map(d => d.date);
+  const fcQty     = forecast.forecast.map(d => d.predicted);
+  const fcLower   = forecast.forecast.map(d => d.lower);
+  const fcUpper   = forecast.forecast.map(d => d.upper);
+
+  const allDates = [...histDates, ...fcDates];
+  const splitIdx = histDates.length;
+
+  const fCtx = document.getElementById('forecast-chart').getContext('2d');
+  charts.forecast = new Chart(fCtx, {
+    type: 'line',
+    data: {
+      labels: allDates.map(d => d.slice(5)),
+      datasets: [
+        // Confidence band (upper)
+        { data: [...histQty.map(()=>null), ...fcUpper],
+          borderColor:'transparent', backgroundColor:color+'22',
+          fill: '+1', pointRadius:0, tension:0.3 },
+        // Confidence band (lower)
+        { data: [...histQty.map(()=>null), ...fcLower],
+          borderColor:'transparent', backgroundColor:'transparent',
+          fill: false, pointRadius:0, tension:0.3 },
+        // Forecast line
+        { data: [...histQty.map(()=>null), ...fcQty],
+          borderColor: color+'88', borderWidth: 2, borderDash: [4,3],
+          pointRadius: 0, fill: false, tension: 0.3 },
+        // History line
+        { data: [...histQty, ...fcQty.map(()=>null)],
+          borderColor: color, borderWidth: 2,
+          pointRadius: 0, fill: false, tension: 0.3 },
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},
+        annotation:{annotations:{
+          vline:{type:'line',xMin:splitIdx-0.5,xMax:splitIdx-0.5,
+            borderColor:'rgba(0,0,0,0.15)',borderWidth:1,borderDash:[4,3],
+            label:{content:'hoje',display:true,color:'#7a7268',font:{size:9,family:'JetBrains Mono'},position:'start'}}
+        }}
+      },
+      scales:{
+        x:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#7a7268',font:{family:'JetBrains Mono',size:9},maxTicksLimit:12}},
+        y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#7a7268',font:{family:'JetBrains Mono',size:9}}},
+      }
+    }
+  });
+
+  // Forecast bar (30 days)
+  const fbCtx = document.getElementById('forecast-bar').getContext('2d');
+  charts.fcbar = new Chart(fbCtx, {
+    type: 'bar',
+    data: {
+      labels: fcDates.map(d => d.slice(5)),
+      datasets: [{
+        data: fcQty,
+        backgroundColor: color+'66', borderColor: color,
+        borderWidth: 1, borderRadius: 3,
+      }]
+    },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#7a7268',font:{family:'JetBrains Mono',size:8},maxTicksLimit:8}},
+        y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#7a7268',font:{family:'JetBrains Mono',size:9}}},
+      }
+    }
+  });
+
+  // Dow pattern from history
+  const dowCounts = Array(7).fill(0);
+  const dowN = Array(7).fill(0);
+  histDaily.forEach(d => {
+    const dow = new Date(d.date).getDay();
+    dowCounts[dow] += d.quantity;
+    dowN[dow]++;
+  });
+  const dowAvg = dowCounts.map((v,i) => dowN[i] ? +(v/dowN[i]).toFixed(1) : 0);
+  const pdCtx = document.getElementById('prod-dow').getContext('2d');
+  charts.pdow = new Chart(pdCtx, {
+    type: 'bar',
+    data: {
+      labels: ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'],
+      datasets: [{ data: [dowAvg[0],...dowAvg.slice(1)],
+        backgroundColor: ['rgba(10,12,15,0.8)','rgba(10,12,15,0.25)','rgba(10,12,15,0.25)',
+          'rgba(10,12,15,0.25)','rgba(10,12,15,0.25)','rgba(10,12,15,0.5)','rgba(10,12,15,0.8)'],
+        borderRadius:4 }]
+    },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#7a7268',font:{family:'JetBrains Mono',size:9}}},
+        y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#7a7268',font:{family:'JetBrains Mono',size:9}}},
+      }
+    }
+  });
+}
+
+// ── Products tab ──────────────────────────────────────────────────────────
+function renderProductsTab() {
+  const m = document.getElementById('main');
+  const maxSales = Math.max(...allProducts.map(p => p.total_sales), 1);
+  const maxRevenue = Math.max(...allProducts.map(p => p.total_sales * p.price), 1);
+
+  m.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Todos os Produtos</div>
+        <div class="card-meta">${allProducts.length} SKUs · modelo GBM treinado</div>
+      </div>
+      <div class="table-wrap" style="max-height:calc(100vh - 240px)">
+        <table>
+          <thead><tr>
+            <th>#</th><th>Produto</th><th>Categoria</th>
+            <th class="txt-right">Preço</th><th class="txt-right">Margem</th>
+            <th>Volume Total</th><th class="txt-right">Média/dia</th>
+            <th class="txt-right">MAE</th><th class="txt-right">MAPE</th>
+            <th>Ação</th>
+          </tr></thead>
+          <tbody>
+            ${allProducts.map((p, i) => {
+              const margin = ((p.price - p.cost) / p.price * 100).toFixed(1);
+              const mCls = margin > 50 ? 'txt-green' : margin > 30 ? 'txt-amber' : 'txt-red';
+              const mapeCls = p.mape < 15 ? 'pill-green' : p.mape < 30 ? 'pill-amber' : 'pill-red';
+              const color = PROD_COLORS[i % PROD_COLORS.length];
+              return `
+                <tr>
+                  <td class="rank">${i+1}</td>
+                  <td>
+                    <div style="display:flex;align-items:center;gap:7px">
+                      <div style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></div>
+                      <span style="font-size:11px;font-weight:500">${p.name}</span>
+                    </div>
+                  </td>
+                  <td class="txt-muted" style="font-size:10px">${p.category}</td>
+                  <td class="txt-right">R$ ${p.price}</td>
+                  <td class="txt-right ${mCls}">${margin}%</td>
+                  <td>
+                    <div class="bar-cell">
+                      <div class="bar-fill" style="width:${(p.total_sales/maxSales*80).toFixed(0)}px;background:${color}"></div>
+                      <span class="txt-muted">${fmtK(p.total_sales)}</span>
+                    </div>
+                  </td>
+                  <td class="txt-right">${p.avg_daily_sales}</td>
+                  <td class="txt-right txt-muted">${p.mae}</td>
+                  <td class="txt-right"><span class="pill ${mapeCls}">${p.mape}%</span></td>
+                  <td><button onclick="selectProduct('${p.id}');switchTabById('forecast')"
+                              style="font-size:9px;padding:3px 8px;border-radius:4px;border:1px solid var(--border2);background:transparent;cursor:pointer;color:var(--accent2)">Ver →</button></td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function switchTabById(tab) {
+  const btns = document.querySelectorAll('.htab');
+  const tabs = ['overview','forecast','products'];
+  btns.forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
+  destroyCharts();
+  currentTab = tab;
+  renderTab(tab);
+}
+
+// ── Utils ─────────────────────────────────────────────────────────────────
+function metricRow(label, value, color) {
+  const cls = color ? `txt-${color}` : 'txt-muted';
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.04)">
+      <span style="color:var(--muted);font-size:10px">${label}</span>
+      <span class="${cls}" style="font-weight:500;font-size:11px">${value}</span>
+    </div>
+  `;
+}
+
+function aggregateWeekly(daily) {
+  const byWeek = {};
+  daily.forEach(d => {
+    const date = new Date(d.date);
+    const week = new Date(date);
+    week.setDate(date.getDate() - date.getDay());
+    const key = week.toISOString().slice(0, 10);
+    byWeek[key] = (byWeek[key] || 0) + d.quantity;
+  });
+  return Object.entries(byWeek)
+    .sort((a,b) => a[0].localeCompare(b[0]))
+    .map(([date, quantity]) => ({date, quantity}));
+}
+
+function fmtK(n) {
+  if (!n && n!==0) return '—';
+  if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1)+'k';
+  return (+n).toFixed(0);
+}
+
+function fmtM(n) {
+  if (n >= 1e6) return (n/1e6).toFixed(2)+'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1)+'k';
+  return (+n).toFixed(2);
+}
+
+init();
+</script>
+</body>
+</html>
